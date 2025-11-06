@@ -48,8 +48,11 @@ abstract contract SuperchainERC721 is ERC721, ISemver {
     )
         external
     {
-        // can only be called by the owner
+        // can only be called by the owner or an approved operator
         if (msg.sender != ownerOf(_tokenId) || isApprovedForAll(_from, msg.sender)) revert Unauthorized();
+
+        // force-set the from parameter to the owner
+        _from = ownerOf(_tokenId);
 
         // burn the nft here
         _burn(_tokenId);
@@ -70,6 +73,13 @@ abstract contract SuperchainERC721 is ERC721, ISemver {
     function finalizeCrosschainTransfer(address _to, uint256 _tokenId) external {
         // can only be called by the L2ToL2CrossDomainMessenger
         if (msg.sender != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) revert Unauthorized();
+
+        // get the sender of the message
+        address sender =
+            IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).crossDomainMessageSender();
+
+        // check if the sender is the contract
+        if (sender != address(this)) revert Unauthorized();
 
         // mint the nft here
         _mint(_to, _tokenId);
