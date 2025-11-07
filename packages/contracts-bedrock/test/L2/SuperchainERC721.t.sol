@@ -9,7 +9,6 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Target contract
 import { SuperchainERC721 } from "src/L2/SuperchainERC721.sol";
-import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { ERC721 } from "@solady-v0.0.245/tokens/ERC721.sol";
 import { ISuperchainERC721 } from "interfaces/L2/ISuperchainERC721.sol";
 import { MockSuperchainERC721Implementation } from "test/mocks/SuperchainERC721Implementation.sol";
@@ -36,12 +35,12 @@ abstract contract SuperchainERC721_TestInit is Test {
     }
 }
 
-/// @title SuperchainERC721_CrosschainTransferInitiated_Test
-/// @notice Tests the `crosschainTransferInitiated` function of the `SuperchainERC721` contract.
-contract SuperchainERC721_CrosschainTransferInitiated_Test is SuperchainERC721_TestInit {
-    /// @notice Tests the `crosschainTransferInitiated` function reverts when the caller is not the owner or approved
+/// @title SuperchainERC721_InitiateCrosschainTransfer_Test
+/// @notice Tests the `initiateCrosschainTransfer` function of the `SuperchainERC721` contract.
+contract SuperchainERC721_InitiateCrosschainTransfer_Test is SuperchainERC721_TestInit {
+    /// @notice Tests the `initiateCrosschainTransfer` function reverts when the caller is not the owner or approved
     /// operator of the token.
-    function testFuzz_crosschainTransferInitiated_callerNotOwnerOrApprovedOperator_reverts(
+    function testFuzz_initiateCrosschainTransfer_callerNotOwnerOrApprovedOperator_reverts(
         address _from,
         address _to,
         uint256 _tokenId,
@@ -57,8 +56,8 @@ contract SuperchainERC721_CrosschainTransferInitiated_Test is SuperchainERC721_T
         superchainERC721.initiateCrosschainTransfer(_from, _to, _tokenId, _destinationChainId);
     }
 
-    /// @notice Tests the `crosschainTransferInitiated` function succeeds.
-    function testFuzz_crosschainTransferInitiated_succeeds(
+    /// @notice Tests the `initiateCrosschainTransfer` function succeeds.
+    function testFuzz_initiateCrosschainTransfer_succeeds(
         address _from,
         address _to,
         uint256 _tokenId,
@@ -66,6 +65,7 @@ contract SuperchainERC721_CrosschainTransferInitiated_Test is SuperchainERC721_T
     )
         public
     {
+        vm.assume(_from != address(0));
         superchainERC721.mint(_from, _tokenId);
 
         // Expect the emit of the `CrosschainTransferInitiated` event
@@ -95,15 +95,62 @@ contract SuperchainERC721_CrosschainTransferInitiated_Test is SuperchainERC721_T
     }
 }
 
-contract SuperchainERC721_CrosschainTransferFinalized_Test is SuperchainERC721_TestInit {
-    /// @notice Tests the `crosschainTransferFinalized` function reverts when the caller is not the
+contract SuperchainERC721_FinalizeCrosschainTransfer_Test is SuperchainERC721_TestInit {
+    /// @notice Tests the `finalizeCrosschainTransfer` function reverts when the caller is not the
     /// L2ToL2CrossDomainMessenger.
-    function testFuzz_crosschainTransferFinalized_callerNotMessenger_reverts() public { }
+    function testFuzz_finalizeCrosschainTransfer_callerNotMessenger_reverts(
+        address _caller,
+        address _to,
+        uint256 _tokenId
+    )
+        public
+    {
+        vm.assume(_caller != address(MESSENGER));
 
-    /// @notice Tests the `crosschainTransferFinalized` function reverts when the sender of the message is not the
+        vm.prank(_caller);
+        vm.expectRevert(Unauthorized.selector);
+        superchainERC721.finalizeCrosschainTransfer(_to, _tokenId);
+    }
+
+    /// @notice Tests the `finalizeCrosschainTransfer` function reverts when the sender of the message is not the
     /// contract.
-    function testFuzz_crosschainTransferFinalized_senderNotContract_reverts() public { }
+    function testFuzz_finalizeCrosschainTransfer_senderNotContract_reverts(
+        address _sender,
+        address _to,
+        uint256 _tokenId
+    )
+        public
+    {
+        vm.assume(_sender != address(superchainERC721));
 
-    /// @notice Tests the `crosschainTransferFinalized` function succeeds.
-    function testFuzz_crosschainTransferFinalized_succeeds(address _to, uint256 _tokenId) public { }
+        _mockAndExpect(
+            address(MESSENGER),
+            abi.encodeCall(IL2ToL2CrossDomainMessenger.crossDomainMessageSender, ()),
+            abi.encode(_sender)
+        );
+
+        vm.prank(address(MESSENGER));
+        vm.expectRevert(Unauthorized.selector);
+        superchainERC721.finalizeCrosschainTransfer(_to, _tokenId);
+    }
+
+    /// @notice Tests the `finalizeCrosschainTransfer` function succeeds.
+    function testFuzz_finalizeCrosschainTransfer_succeeds(address _to, uint256 _tokenId) public {
+        vm.assume(_to != address(0));
+        _mockAndExpect(
+            address(MESSENGER),
+            abi.encodeCall(IL2ToL2CrossDomainMessenger.crossDomainMessageSender, ()),
+            abi.encode(address(superchainERC721))
+        );
+
+        // Expect the emit of the `CrosschainTransferFinalized` event
+        vm.expectEmit();
+        emit ISuperchainERC721.CrosschainTransferFinalized(_to, _tokenId);
+
+        vm.prank(address(MESSENGER));
+        superchainERC721.finalizeCrosschainTransfer(_to, _tokenId);
+
+        // Check the token is minted
+        assertEq(superchainERC721.ownerOf(_tokenId), _to);
+    }
 }
