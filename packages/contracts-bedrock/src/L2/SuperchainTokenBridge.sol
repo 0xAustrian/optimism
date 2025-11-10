@@ -134,7 +134,7 @@ contract SuperchainTokenBridge {
 
         ISuperchainERC721(_token).crosschainBurn(msg.sender, _tokenId);
 
-        bytes memory message = abi.encodeCall(this.relayERC20, (_token, msg.sender, _to, _tokenId));
+        bytes memory message = abi.encodeCall(this.relayERC721, (_token, msg.sender, _to, _tokenId));
         msgHash_ = IL2ToL2CrossDomainMessenger(MESSENGER).sendMessage(_chainId, address(this), message);
 
         emit SendERC721(_token, msg.sender, _to, _tokenId, _chainId);

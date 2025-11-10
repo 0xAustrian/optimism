@@ -12,9 +12,12 @@ import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMes
 import { SuperchainTokenBridge } from "src/L2/SuperchainTokenBridge.sol";
 import { ISuperchainTokenBridge } from "interfaces/L2/ISuperchainTokenBridge.sol";
 import { ISuperchainERC20 } from "interfaces/L2/ISuperchainERC20.sol";
+import { ISuperchainERC721 } from "interfaces/L2/ISuperchainERC721.sol";
 import { IERC20 } from "@openzeppelin/contracts/interfaces/IERC20.sol";
+import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC7802 } from "interfaces/L2/IERC7802.sol";
 import { MockSuperchainERC20Implementation } from "test/mocks/SuperchainERC20Implementation.sol";
+import { MockSuperchainERC721Implementation } from "test/mocks/SuperchainERC721Implementation.sol";
 
 /// @title SuperchainTokenBridge_TestInit
 /// @notice Reusable test initialization for `SuperchainTokenBridge` tests.
@@ -32,14 +35,24 @@ abstract contract SuperchainTokenBridge_TestInit is Test {
 
     event RelayERC20(address indexed token, address indexed from, address indexed to, uint256 amount, uint256 source);
 
+    event SendERC721(
+        address indexed token, address indexed from, address indexed to, uint256 tokenId, uint256 destination
+    );
+
+    event RelayERC721(address indexed token, address indexed from, address indexed to, uint256 tokenId, uint256 source);
+
     ISuperchainERC20 public superchainERC20;
+    ISuperchainERC721 public superchainERC721;
     ISuperchainTokenBridge public superchainTokenBridge;
+    SuperchainTokenBridge public superchainTokenBridgeConcrete;
 
     /// @notice Sets up the test suite.
     function setUp() public {
         vm.etch(Predeploys.SUPERCHAIN_TOKEN_BRIDGE, address(new SuperchainTokenBridge()).code);
         superchainTokenBridge = ISuperchainTokenBridge(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
+        superchainTokenBridgeConcrete = SuperchainTokenBridge(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
         superchainERC20 = ISuperchainERC20(address(new MockSuperchainERC20Implementation()));
+        superchainERC721 = ISuperchainERC721(address(new MockSuperchainERC721Implementation()));
 
         // Skip the initialization until OptimismSuperchainERC20Factory is integrated again
         // superchainERC20 = ISuperchainERC20(
@@ -235,5 +248,161 @@ contract SuperchainTokenBridge_RelayERC20_Test is SuperchainTokenBridge_TestInit
         // Check the total supply and balance of `_to` after the relay were updated correctly
         assertEq(IERC20(address(superchainERC20)).totalSupply(), _totalSupplyBefore + _amount);
         assertEq(IERC20(address(superchainERC20)).balanceOf(_to), _toBalanceBefore + _amount);
+    }
+}
+
+/// @title SuperchainTokenBridge_SendERC721_Test
+/// @notice Tests the `sendERC721` function of the `SuperchainTokenBridge` contract.
+contract SuperchainTokenBridge_SendERC721_Test is SuperchainTokenBridge_TestInit {
+    /// @notice Tests the `sendERC721` function reverts when the address `_to` is zero.
+    function testFuzz_sendERC721_zeroAddressTo_reverts(address _sender, uint256 _tokenId, uint256 _chainId) public {
+        // Expect the revert with `ZeroAddress` selector
+        vm.expectRevert(ISuperchainTokenBridge.ZeroAddress.selector);
+
+        // Call the `sendERC721` function with the zero address as `_to`
+        vm.prank(_sender);
+        superchainTokenBridgeConcrete.sendERC721(address(superchainERC721), ZERO_ADDRESS, _tokenId, _chainId);
+    }
+
+    /// @notice Tests the `sendERC721` function burns the sender token, sends the message, and
+    ///         emits the `SendERC721` event.
+    function testFuzz_sendERC721_succeeds(
+        address _sender,
+        address _to,
+        uint256 _tokenId,
+        uint256 _chainId,
+        bytes32 _msgHash
+    )
+        external
+    {
+        // Ensure `_sender` and `_to` is not the zero address
+        vm.assume(_sender != ZERO_ADDRESS);
+        vm.assume(_to != ZERO_ADDRESS);
+
+        // Mint a token to the sender so then it can be sent
+        vm.prank(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
+        superchainERC721.crosschainMint(_sender, _tokenId);
+
+        // Get the balance of `_sender` before the send to compare later on the assertions
+        uint256 _senderBalanceBefore = IERC721(address(superchainERC721)).balanceOf(_sender);
+
+        // Look for the emit of the `Transfer` event (ERC721)
+        vm.expectEmit(address(superchainERC721));
+        emit IERC721.Transfer(_sender, ZERO_ADDRESS, _tokenId);
+
+        // Look for the emit of the `SendERC721` event
+        vm.expectEmit(address(superchainTokenBridge));
+        emit SendERC721(address(superchainERC721), _sender, _to, _tokenId, _chainId);
+
+        // Mock the call over the `sendMessage` function and expect it to be called properly
+        bytes memory _message = abi.encodeCall(
+            superchainTokenBridgeConcrete.relayERC721, (address(superchainERC721), _sender, _to, _tokenId)
+        );
+        _mockAndExpect(
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+            abi.encodeCall(
+                IL2ToL2CrossDomainMessenger.sendMessage, (_chainId, address(superchainTokenBridge), _message)
+            ),
+            abi.encode(_msgHash)
+        );
+
+        // Call the `sendERC721` function
+        vm.prank(_sender);
+        bytes32 _returnedMsgHash =
+            superchainTokenBridgeConcrete.sendERC721(address(superchainERC721), _to, _tokenId, _chainId);
+
+        // Check the message hash was generated correctly
+        assertEq(_msgHash, _returnedMsgHash);
+
+        // Check the balance of `_sender` after the send was updated correctly
+        assertEq(IERC721(address(superchainERC721)).balanceOf(_sender), _senderBalanceBefore - 1);
+
+        // Check that the token no longer exists
+        vm.expectRevert();
+        IERC721(address(superchainERC721)).ownerOf(_tokenId);
+    }
+}
+
+/// @title SuperchainTokenBridge_RelayERC721_Test
+/// @notice Tests the `relayERC721` function of the `SuperchainTokenBridge` contract.
+contract SuperchainTokenBridge_RelayERC721_Test is SuperchainTokenBridge_TestInit {
+    /// @notice Tests the `relayERC721` function reverts when the caller is not the
+    ///         `L2ToL2CrossDomainMessenger`.
+    function testFuzz_relayERC721_notMessenger_reverts(
+        address _token,
+        address _caller,
+        address _to,
+        uint256 _tokenId
+    )
+        public
+    {
+        // Ensure the caller is not the messenger
+        vm.assume(_caller != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+
+        // Expect the revert with `Unauthorized` selector
+        vm.expectRevert(ISuperchainTokenBridge.Unauthorized.selector);
+
+        // Call the `relayERC721` function with the non-messenger caller
+        vm.prank(_caller);
+        superchainTokenBridgeConcrete.relayERC721(_token, _caller, _to, _tokenId);
+    }
+
+    /// @notice Tests the `relayERC721` function reverts when the `crossDomainMessageSender` that
+    ///         sent the message is not the same `SuperchainTokenBridge`.
+    function testFuzz_relayERC721_notCrossDomainSender_reverts(
+        address _crossDomainMessageSender,
+        uint256 _source,
+        address _to,
+        uint256 _tokenId
+    )
+        public
+    {
+        vm.assume(_crossDomainMessageSender != address(superchainTokenBridge));
+
+        // Mock the call over the `crossDomainMessageContext` function setting a wrong sender
+        vm.mockCall(
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+            abi.encodeCall(IL2ToL2CrossDomainMessenger.crossDomainMessageContext, ()),
+            abi.encode(_crossDomainMessageSender, _source)
+        );
+
+        // Expect the revert with `InvalidCrossDomainSender` selector
+        vm.expectRevert(ISuperchainTokenBridge.InvalidCrossDomainSender.selector);
+
+        // Call the `relayERC721` function with the sender caller
+        vm.prank(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        superchainTokenBridgeConcrete.relayERC721(address(superchainERC721), _crossDomainMessageSender, _to, _tokenId);
+    }
+
+    /// @notice Tests the `relayERC721` mints the proper token and emits the `RelayERC721` event.
+    function testFuzz_relayERC721_succeeds(address _from, address _to, uint256 _tokenId, uint256 _source) public {
+        vm.assume(_to != ZERO_ADDRESS);
+
+        // Mock the call over the `crossDomainMessageContext` function setting the same address as
+        // value
+        _mockAndExpect(
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+            abi.encodeCall(IL2ToL2CrossDomainMessenger.crossDomainMessageContext, ()),
+            abi.encode(address(superchainTokenBridge), _source)
+        );
+
+        // Get the balance of `_to` before the relay to compare later on the assertions
+        uint256 _toBalanceBefore = IERC721(address(superchainERC721)).balanceOf(_to);
+
+        // Look for the emit of the `Transfer` event (ERC721)
+        vm.expectEmit(address(superchainERC721));
+        emit IERC721.Transfer(ZERO_ADDRESS, _to, _tokenId);
+
+        // Look for the emit of the `RelayERC721` event
+        vm.expectEmit(address(superchainTokenBridge));
+        emit RelayERC721(address(superchainERC721), _from, _to, _tokenId, _source);
+
+        // Call the `relayERC721` function with the messenger caller
+        vm.prank(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        superchainTokenBridgeConcrete.relayERC721(address(superchainERC721), _from, _to, _tokenId);
+
+        // Check the balance of `_to` after the relay was updated correctly
+        assertEq(IERC721(address(superchainERC721)).balanceOf(_to), _toBalanceBefore + 1);
+        assertEq(IERC721(address(superchainERC721)).ownerOf(_tokenId), _to);
     }
 }
