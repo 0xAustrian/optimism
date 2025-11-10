@@ -44,13 +44,11 @@ abstract contract SuperchainTokenBridge_TestInit is Test {
     ISuperchainERC20 public superchainERC20;
     ISuperchainERC721 public superchainERC721;
     ISuperchainTokenBridge public superchainTokenBridge;
-    SuperchainTokenBridge public superchainTokenBridgeConcrete;
 
     /// @notice Sets up the test suite.
     function setUp() public {
         vm.etch(Predeploys.SUPERCHAIN_TOKEN_BRIDGE, address(new SuperchainTokenBridge()).code);
         superchainTokenBridge = ISuperchainTokenBridge(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
-        superchainTokenBridgeConcrete = SuperchainTokenBridge(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
         superchainERC20 = ISuperchainERC20(address(new MockSuperchainERC20Implementation()));
         superchainERC721 = ISuperchainERC721(address(new MockSuperchainERC721Implementation()));
 
@@ -261,7 +259,7 @@ contract SuperchainTokenBridge_SendERC721_Test is SuperchainTokenBridge_TestInit
 
         // Call the `sendERC721` function with the zero address as `_to`
         vm.prank(_sender);
-        superchainTokenBridgeConcrete.sendERC721(address(superchainERC721), ZERO_ADDRESS, _tokenId, _chainId);
+        superchainTokenBridge.sendERC721(address(superchainERC721), ZERO_ADDRESS, _tokenId, _chainId);
     }
 
     /// @notice Tests the `sendERC721` function burns the sender token, sends the message, and
@@ -295,9 +293,8 @@ contract SuperchainTokenBridge_SendERC721_Test is SuperchainTokenBridge_TestInit
         emit SendERC721(address(superchainERC721), _sender, _to, _tokenId, _chainId);
 
         // Mock the call over the `sendMessage` function and expect it to be called properly
-        bytes memory _message = abi.encodeCall(
-            superchainTokenBridgeConcrete.relayERC721, (address(superchainERC721), _sender, _to, _tokenId)
-        );
+        bytes memory _message =
+            abi.encodeCall(superchainTokenBridge.relayERC721, (address(superchainERC721), _sender, _to, _tokenId));
         _mockAndExpect(
             Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
             abi.encodeCall(
@@ -308,8 +305,7 @@ contract SuperchainTokenBridge_SendERC721_Test is SuperchainTokenBridge_TestInit
 
         // Call the `sendERC721` function
         vm.prank(_sender);
-        bytes32 _returnedMsgHash =
-            superchainTokenBridgeConcrete.sendERC721(address(superchainERC721), _to, _tokenId, _chainId);
+        bytes32 _returnedMsgHash = superchainTokenBridge.sendERC721(address(superchainERC721), _to, _tokenId, _chainId);
 
         // Check the message hash was generated correctly
         assertEq(_msgHash, _returnedMsgHash);
@@ -344,7 +340,7 @@ contract SuperchainTokenBridge_RelayERC721_Test is SuperchainTokenBridge_TestIni
 
         // Call the `relayERC721` function with the non-messenger caller
         vm.prank(_caller);
-        superchainTokenBridgeConcrete.relayERC721(_token, _caller, _to, _tokenId);
+        superchainTokenBridge.relayERC721(_token, _caller, _to, _tokenId);
     }
 
     /// @notice Tests the `relayERC721` function reverts when the `crossDomainMessageSender` that
@@ -371,7 +367,7 @@ contract SuperchainTokenBridge_RelayERC721_Test is SuperchainTokenBridge_TestIni
 
         // Call the `relayERC721` function with the sender caller
         vm.prank(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        superchainTokenBridgeConcrete.relayERC721(address(superchainERC721), _crossDomainMessageSender, _to, _tokenId);
+        superchainTokenBridge.relayERC721(address(superchainERC721), _crossDomainMessageSender, _to, _tokenId);
     }
 
     /// @notice Tests the `relayERC721` mints the proper token and emits the `RelayERC721` event.
@@ -399,7 +395,7 @@ contract SuperchainTokenBridge_RelayERC721_Test is SuperchainTokenBridge_TestIni
 
         // Call the `relayERC721` function with the messenger caller
         vm.prank(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        superchainTokenBridgeConcrete.relayERC721(address(superchainERC721), _from, _to, _tokenId);
+        superchainTokenBridge.relayERC721(address(superchainERC721), _from, _to, _tokenId);
 
         // Check the balance of `_to` after the relay was updated correctly
         assertEq(IERC721(address(superchainERC721)).balanceOf(_to), _toBalanceBefore + 1);
