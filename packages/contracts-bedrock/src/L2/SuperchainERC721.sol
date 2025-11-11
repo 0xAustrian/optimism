@@ -9,9 +9,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Unauthorized } from "src/libraries/errors/CommonErrors.sol";
 
 // Interfaces
-import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
-import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 
 abstract contract SuperchainERC721 is ERC721, ISemver {
     /// @notice Emitted when a crosschain mint is initiated on the local chain.

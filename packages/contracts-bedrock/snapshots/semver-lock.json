@@ -127,13 +127,17 @@
     "initCodeHash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
     "sourceCodeHash": "0x76eb2c7617e9b0b8dcd6b88470797cc946798a9ac067e3f195fff971fcabdbf5"
   },
+  "src/L2/SuperchainERC721.sol:SuperchainERC721": {
+    "initCodeHash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+    "sourceCodeHash": "0x673dc19f27ae3eab915f8a13ee5e6d01980fd87f9f36e4ce174ee0b4d30cebc1"
+  },
   "src/L2/SuperchainETHBridge.sol:SuperchainETHBridge": {
     "initCodeHash": "0xa43665ad0f2b4f092ff04b12e38f24aa8d2cb34ae7a06fc037970743547bdf98",
     "sourceCodeHash": "0x862b8a2e5dd5cafcda55e35df7713b0d0b7a93d4d6ce29ea9ca53e045bf63cb4"
   },
   "src/L2/SuperchainTokenBridge.sol:SuperchainTokenBridge": {
-    "initCodeHash": "0xb0d25dc03b9c84b07b263921c2b717e6caad3f4297fa939207e35978d7d25abe",
-    "sourceCodeHash": "0x0ff7c1f0264d784fac5d69b792c6bc9d064d4a09701c1bafa808388685c8c4f1"
+    "initCodeHash": "0x01893d42029f947f070335a3b29a8bf26d9bfbc9c5c99e83f81ec0bcc92f345e",
+    "sourceCodeHash": "0x221fb948efdc160a687f5551849b51c401b5760aa7a0f7df86464aceab3f7060"
   },
   "src/L2/WETH.sol:WETH": {
     "initCodeHash": "0xbc2cd025153720943e51b79822c2dc374d270a78b92cf47d49548c468e218e46",

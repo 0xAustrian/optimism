@@ -8,10 +8,7 @@ import { Test } from "forge-std/Test.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Target contract
-import { SuperchainERC721 } from "src/L2/SuperchainERC721.sol";
 import { ERC721 } from "@solady-v0.0.245/tokens/ERC721.sol";
-import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import { ISuperchainERC721 } from "interfaces/L2/ISuperchainERC721.sol";
 import { MockSuperchainERC721Implementation } from "test/mocks/SuperchainERC721Implementation.sol";
 import { Unauthorized } from "src/libraries/errors/CommonErrors.sol";
 
@@ -136,7 +133,7 @@ contract SuperchainERC721_CrosschainBurn_Test is SuperchainERC721_TestInit {
         assertEq(superchainERC721.balanceOf(_from), _fromBalanceBefore - 1);
 
         // Check that the token no longer exists
-        vm.expectRevert();
+        vm.expectRevert(ERC721.TokenDoesNotExist.selector);
         superchainERC721.ownerOf(_tokenId);
     }
 }

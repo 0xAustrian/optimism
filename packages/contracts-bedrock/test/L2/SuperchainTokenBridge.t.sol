@@ -15,6 +15,7 @@ import { ISuperchainERC20 } from "interfaces/L2/ISuperchainERC20.sol";
 import { ISuperchainERC721 } from "interfaces/L2/ISuperchainERC721.sol";
 import { IERC20 } from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import { ERC721 } from "@solady-v0.0.245/tokens/ERC721.sol";
 import { IERC7802 } from "interfaces/L2/IERC7802.sol";
 import { MockSuperchainERC20Implementation } from "test/mocks/SuperchainERC20Implementation.sol";
 import { MockSuperchainERC721Implementation } from "test/mocks/SuperchainERC721Implementation.sol";
@@ -314,7 +315,7 @@ contract SuperchainTokenBridge_SendERC721_Test is SuperchainTokenBridge_TestInit
         assertEq(IERC721(address(superchainERC721)).balanceOf(_sender), _senderBalanceBefore - 1);
 
         // Check that the token no longer exists
-        vm.expectRevert();
+        vm.expectRevert(ERC721.TokenDoesNotExist.selector);
         IERC721(address(superchainERC721)).ownerOf(_tokenId);
     }
 }
